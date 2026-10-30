@@ -1,0 +1,6 @@
+{
+  "name": "Tempo Intelligent Timetable Planner",
+  "description": "Modern AI-powered SaaS timetable planner featuring constraint-satisfaction scheduling, Supabase persistence, multi-module academic management, and Gemini intelligent explanations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
