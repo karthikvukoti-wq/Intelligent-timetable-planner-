@@ -17,6 +17,7 @@ import {
   StudentGroup,
   TimetableSlot,
 } from './src/utils/scheduler.ts';
+import { generateAcademicAnalysis } from './src/utils/aiAnalysis.ts';
 
 dotenv.config();
 
@@ -134,34 +135,7 @@ Provide concise, highly informative, and directly actionable guidance regarding 
     }
 
     // Heuristic Fallback Analysis if no API key or API call issue
-    const lowerQ = question.toLowerCase();
-    let heuristicResponse = '';
-
-    if (lowerQ.includes('why') && lowerQ.includes('slot')) {
-      heuristicResponse = `**Slot Allocation Explanation:**
-The CSP Backtracking solver assigned this slot based on the intersection of three hard constraints and two soft optimization heuristics:
-1. **Facility Fit & Type:** The allocated room strictly satisfies the course facility type requirement and provides seating capacity exceeding the enrolled batch size.
-2. **Conflict Prevention:** Zero overlapping bookings exist at this time for the assigned instructor, the classroom venue, and the enrolled student cohort.
-3. **Faculty Availability Window:** The assigned instructor has explicitly registered available hours covering this period.
-4. **Pedagogical Spacing:** The backtracking algorithm distributes course lectures across distinct days of the week rather than stacking multiple consecutive hours, preventing student cognitive fatigue.`;
-    } else if (lowerQ.includes('workload') || lowerQ.includes('faculty') || lowerQ.includes('fatigue')) {
-      heuristicResponse = `**Faculty Workload & Fatigue Analysis:**
-- **Max Hours Compliance:** All assigned instructors are currently within their statutory weekly teaching caps (16-18 hours).
-- **Daily Spread:** Teaching sessions are balanced between morning (09:00 - 12:30) and afternoon blocks, allowing preparation and research intervals.
-- **Fatigue Recommendation:** Ensure senior faculty with back-to-back lecture slots have at least a 15-minute buffer between campus blocks.`;
-    } else if (lowerQ.includes('room') || lowerQ.includes('bottleneck') || lowerQ.includes('space') || lowerQ.includes('utilization')) {
-      heuristicResponse = `**Room Utilization & Venue Audit:**
-- **Lecture Halls:** Demand is concentrated during the prime morning peak (09:00 - 11:30), showing ~75% peak utilization.
-- **Specialized Laboratories:** Specialized lab venues (e.g. Lab-2) require dedicated setup time; their allocation avoids afternoon congestion.
-- **Optimization Strategy:** To increase overall campus throughput, consider routing afternoon elective sessions to underutilized seminar rooms.`;
-    } else {
-      heuristicResponse = `**Tempo Schedule Diagnostic:**
-The current timetable has been generated via Constraint Satisfaction Backtracking and verified against university policy:
-- **Hard Conflicts:** 0 (Zero double-bookings across faculty, student groups, and physical spaces).
-- **Load Distribution:** Weekly sessions are distributed smoothly across Monday through Friday with a balanced peak day load.
-- **Recommendation:** You can freely adjust individual course allocations or add supplementary batches in the Academic Management panels. The CSP solver will automatically re-verify all constraints.`;
-    }
-
+    const heuristicResponse = generateAcademicAnalysis(question, context);
     return res.json({ answer: heuristicResponse, isFallback: true });
   } catch (err: any) {
     console.error('Assistant API error:', err);
@@ -181,6 +155,7 @@ async function startServer() {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
+      base: '/',
     });
     app.use(vite.middlewares);
   }

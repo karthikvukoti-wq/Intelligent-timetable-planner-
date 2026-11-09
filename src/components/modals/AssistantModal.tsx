@@ -7,6 +7,8 @@ import React, { useState } from 'react';
 import { Sparkles, X, Send, Bot, User, Copy, Check, Loader2 } from 'lucide-react';
 import { Course, Faculty, Room, TimetableSlot, ValidationResult } from '../../utils/scheduler.ts';
 
+import { generateAcademicAnalysis } from '../../utils/aiAnalysis.ts';
+
 interface Message {
   role: 'assistant' | 'user';
   content: string;
@@ -61,6 +63,37 @@ export const AssistantModal: React.FC<AssistantModalProps> = ({
     setMessages(newMessages);
     setIsLoading(true);
 
+    const context = {
+      totalSessions: slots.length,
+      totalCourses: courses.length,
+      totalFaculty: faculty.length,
+      totalRooms: rooms.length,
+      score: validation?.score || 100,
+      hardConflicts: validation?.hardConflicts || 0,
+      dailyDistribution: validation?.dailyDistribution,
+    };
+
+    // If hosted on GitHub Pages or static environment, use local academic analysis engine
+    const isStaticHost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:');
+
+    if (isStaticHost) {
+      setTimeout(() => {
+        const answer = generateAcademicAnalysis(textToSend, context);
+        setMessages([
+          ...newMessages,
+          {
+            role: 'assistant',
+            content: answer,
+            isFallback: true,
+          },
+        ]);
+        setIsLoading(false);
+      }, 400);
+      return;
+    }
+
     try {
       const response = await fetch('/api/assistant', {
         method: 'POST',
@@ -68,15 +101,7 @@ export const AssistantModal: React.FC<AssistantModalProps> = ({
         body: JSON.stringify({
           question: textToSend,
           timetable: slots,
-          context: {
-            totalSessions: slots.length,
-            totalCourses: courses.length,
-            totalFaculty: faculty.length,
-            totalRooms: rooms.length,
-            score: validation?.score || 100,
-            hardConflicts: validation?.hardConflicts || 0,
-            dailyDistribution: validation?.dailyDistribution,
-          },
+          context,
         }),
       });
 
@@ -93,12 +118,15 @@ export const AssistantModal: React.FC<AssistantModalProps> = ({
           isFallback: data.isFallback,
         },
       ]);
-    } catch (err: any) {
+    } catch {
+      // Graceful fallback to heuristic analysis engine without error noise
+      const answer = generateAcademicAnalysis(textToSend, context);
       setMessages([
         ...newMessages,
         {
           role: 'assistant',
-          content: `AI analysis service notice: ${err.message}. Showing local heuristic evaluation.`,
+          content: answer,
+          isFallback: true,
         },
       ]);
     } finally {

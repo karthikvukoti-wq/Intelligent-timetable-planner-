@@ -179,6 +179,27 @@ export default function App() {
     setIsGenerating(true);
     setNotice(null);
 
+    const isStaticHost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:');
+
+    if (isStaticHost) {
+      try {
+        const localResult = generateCspTimetable(courses, rooms, faculty, groups);
+        setSlots(localResult.slots);
+        TimetableStore.setSlots(localResult.slots);
+        setValidation(localResult.validation);
+        showNotice(
+          `Timetable Generated: ${localResult.slots.length} sessions scheduled in ${localResult.validation.executionTimeMs}ms (${localResult.validation.hardConflicts} hard conflicts · score ${localResult.validation.score}%)`
+        );
+      } catch (localErr: any) {
+        showNotice(`Generation notice: ${localErr.message}`);
+      } finally {
+        setIsGenerating(false);
+      }
+      return;
+    }
+
     try {
       // 1. Try server-side generation endpoint
       const response = await fetch('/api/timetable/generate', {
