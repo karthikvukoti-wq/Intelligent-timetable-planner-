@@ -30,7 +30,7 @@ jobs:
           node-version: 22
 
       - name: Install project dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Run test suite
         run: npm run test
