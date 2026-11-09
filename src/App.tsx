@@ -24,7 +24,6 @@ import { GroupModal } from './components/modals/GroupModal.tsx';
 import { SlotDetailModal } from './components/modals/SlotDetailModal.tsx';
 import { ValidationModal } from './components/modals/ValidationModal.tsx';
 import { SavedTimetablesModal } from './components/modals/SavedTimetablesModal.tsx';
-import { AssistantModal } from './components/modals/AssistantModal.tsx';
 
 import {
   Course,
@@ -85,8 +84,6 @@ export default function App() {
   const [selectedSlot, setSelectedSlot] = useState<TimetableSlot | null>(null);
   const [validationModalOpen, setValidationModalOpen] = useState(false);
   const [savedTimetablesOpen, setSavedTimetablesOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
-  const [initialAssistantQuestion, setInitialAssistantQuestion] = useState('');
 
   // Reload store data into component state
   const reloadData = () => {
@@ -129,77 +126,120 @@ export default function App() {
     }, 4500);
   };
 
-  // Auth initialization
+  // Auth initialization: Verify administrator session token
   useEffect(() => {
-    const client = getSupabaseClient();
+    const initializeAuth = async () => {
+      const storedToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const localSessionStr = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
 
-    if (client) {
-      client.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          setUser(session.user);
-          setDbStatus({ isSyncing: true, error: null });
-          TimetableStore.syncWithSupabase().then((res) => {
-            setDbStatus({ isSyncing: false, error: res.success ? null : res.message });
-            reloadData();
-          });
-        } else {
-          const localSession = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
-          if (localSession) {
-            try {
-              setUser(JSON.parse(localSession));
+      if (!storedToken && !localSessionStr) {
+        setUser(null);
+        setIsLoadingSession(false);
+        return;
+      }
+
+      const isStaticHost =
+        typeof window !== 'undefined' &&
+        (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:');
+
+      if (isStaticHost) {
+        if (localSessionStr) {
+          try {
+            const parsed = JSON.parse(localSessionStr);
+            if (parsed && (parsed.role === 'Administrator' || parsed.role === 'Dean / Timetable Admin')) {
+              setUser(parsed);
               reloadData();
-            } catch {
+            } else {
+              localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+              localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
               setUser(null);
             }
+          } catch {
+            setUser(null);
           }
         }
         setIsLoadingSession(false);
-      });
-
-      const {
-        data: { subscription },
-      } = client.auth.onAuthStateChange((_event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-          localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session.user));
-          setDbStatus({ isSyncing: true, error: null });
-          TimetableStore.syncWithSupabase().then((res) => {
-            setDbStatus({ isSyncing: false, error: res.success ? null : res.message });
-            reloadData();
-          });
-        } else {
-          setUser(null);
-          localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
-        }
-        setIsLoadingSession(false);
-      });
-
-      return () => {
-        subscription.unsubscribe();
-      };
-    } else {
-      const localSession = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
-      if (localSession) {
-        try {
-          setUser(JSON.parse(localSession));
-          reloadData();
-        } catch {
-          setUser(null);
-        }
+        return;
       }
-      setIsLoadingSession(false);
-    }
+
+      // Live Server: Cryptographically verify administrator token with server
+      try {
+        if (!storedToken) {
+          setUser(null);
+          setIsLoadingSession(false);
+          return;
+        }
+
+        const res = await fetch('/api/auth/verify', {
+          headers: {
+            Authorization: `Bearer ${storedToken}`,
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.valid && data.user) {
+            setUser(data.user);
+            setDbStatus({ isSyncing: true, error: null });
+            TimetableStore.syncWithSupabase().then((syncRes) => {
+              setDbStatus({ isSyncing: false, error: syncRes.success ? null : syncRes.message });
+              reloadData();
+            });
+          } else {
+            localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+            localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+            setUser(null);
+          }
+        } else {
+          // Token expired or invalid
+          localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+          setUser(null);
+        }
+      } catch {
+        // Offline or connection fallback
+        if (localSessionStr) {
+          try {
+            const parsed = JSON.parse(localSessionStr);
+            if (parsed && (parsed.role === 'Administrator' || parsed.role === 'Dean / Timetable Admin')) {
+              setUser(parsed);
+              reloadData();
+            }
+          } catch {
+            setUser(null);
+          }
+        }
+      } finally {
+        setIsLoadingSession(false);
+      }
+    };
+
+    initializeAuth();
   }, []);
 
-  // Logout handler
+  // Secure Administrator Logout handler
   const handleLogout = async () => {
+    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    if (token) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } catch {
+        // Non-blocking logout failure
+      }
+    }
     const client = getSupabaseClient();
     if (client) {
       await client.auth.signOut().catch(() => {});
     }
+    localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
     setUser(null);
-    showNotice('Signed out of academic workspace.');
+    showNotice('Administrator session securely terminated.');
   };
 
   // Generate timetable via CSP Backtracking
@@ -229,10 +269,16 @@ export default function App() {
     }
 
     try {
-      // 1. Try server-side generation endpoint
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // 1. Try server-side generation endpoint with admin authorization
       const response = await fetch('/api/timetable/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ courses, rooms, faculty, groups }),
       });
 
@@ -435,12 +481,6 @@ export default function App() {
     }
   };
 
-  // Trigger Ask AI for slot
-  const handleAskAiForSlot = (questionText: string) => {
-    setInitialAssistantQuestion(questionText);
-    setAssistantOpen(true);
-  };
-
   // Loading state
   if (isLoadingSession) {
     return (
@@ -457,9 +497,12 @@ export default function App() {
   if (!user) {
     return (
       <AuthScreen
-        onAuthenticated={(authenticatedUser) => {
+        onAuthenticated={(authenticatedUser, token) => {
           setUser(authenticatedUser);
           localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(authenticatedUser));
+          if (token) {
+            localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+          }
           TimetableStore.syncWithSupabase().then(() => reloadData());
         }}
       />
@@ -473,16 +516,9 @@ export default function App() {
       {/* Sidebar Navigation */}
       <Sidebar
         currentPage={currentPage}
-        onSelectPage={(page) => {
-          if (page === 'AI Assistant') {
-            setAssistantOpen(true);
-          } else {
-            setCurrentPage(page);
-          }
-        }}
+        onSelectPage={(page) => setCurrentPage(page)}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
-        onOpenAssistant={() => setAssistantOpen(true)}
         slotsCount={slots.length}
         user={user}
         onLogout={handleLogout}
@@ -494,7 +530,6 @@ export default function App() {
         <Header
           currentPage={currentPage}
           onOpenMobile={() => setMobileOpen(true)}
-          onOpenAssistant={() => setAssistantOpen(true)}
           onOpenSettings={() => setCurrentPage('Settings')}
           isSupabaseConfigured={supabaseConfig.isConfigured}
           validationScore={validation?.score || 100}
@@ -548,7 +583,6 @@ export default function App() {
               savedTimetablesCount={savedTimetables.length}
               onNavigate={(page) => setCurrentPage(page)}
               onOpenGenerate={handleGenerate}
-              onOpenAssistant={() => setAssistantOpen(true)}
               onAddCourse={() => {
                 setCourseToEdit(null);
                 setCourseModalOpen(true);
@@ -711,7 +745,6 @@ export default function App() {
       <SlotDetailModal
         slot={selectedSlot}
         onClose={() => setSelectedSlot(null)}
-        onAskAi={handleAskAiForSlot}
       />
 
       <ValidationModal
@@ -726,20 +759,6 @@ export default function App() {
         savedTimetables={savedTimetables}
         onLoadTimetable={handleLoadTimetable}
         onDeleteTimetable={handleDeleteSavedTimetable}
-      />
-
-      <AssistantModal
-        isOpen={assistantOpen}
-        onClose={() => {
-          setAssistantOpen(false);
-          setInitialAssistantQuestion('');
-        }}
-        slots={slots}
-        validation={validation}
-        courses={courses}
-        rooms={rooms}
-        faculty={faculty}
-        initialQuestion={initialAssistantQuestion}
       />
     </div>
   );

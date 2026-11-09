@@ -32,7 +32,6 @@ interface OverviewViewProps {
   savedTimetablesCount: number;
   onNavigate: (page: string) => void;
   onOpenGenerate: () => void;
-  onOpenAssistant: () => void;
   onAddCourse: () => void;
 }
 
@@ -46,7 +45,6 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   savedTimetablesCount,
   onNavigate,
   onOpenGenerate,
-  onOpenAssistant,
   onAddCourse,
 }) => {
   const isConflictFree = !validation || validation.isConflictFree;
@@ -85,13 +83,6 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             >
               <Play size={15} />
               <span>Generate Timetable</span>
-            </button>
-            <button
-              onClick={onOpenAssistant}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-white/10 hover:bg-white/15 border border-white/15 backdrop-blur-md transition flex items-center gap-2"
-            >
-              <Sparkles size={14} className="text-[#FDB365]" />
-              <span>Consult Copilot</span>
             </button>
             <button
               onClick={onAddCourse}
@@ -214,7 +205,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
       </div>
 
-      {/* Two Columns: Daily Distribution + Copilot Status */}
+      {/* Two Columns: Daily Distribution + Optimization Status */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Weekly Distribution Chart */}
         <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-[#edf0f5] shadow-2xs">
@@ -269,18 +260,17 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <div>
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-xl bg-[#FC475C] text-white flex items-center justify-center shadow-xs">
-                <Sparkles size={16} />
+                <CheckCircle2 size={16} />
               </div>
               <span className="text-xs font-extrabold uppercase tracking-wider text-[#981B2B]">
-                Gemini Copilot Insights
+                CSP Optimization Status
               </span>
             </div>
             <h3 className="text-base font-bold text-[#172033] leading-snug">
               Backtracking CSP algorithm verified {slots.length} sessions.
             </h3>
             <p className="text-xs text-gray-600 leading-relaxed mt-2.5">
-              All faculty availability constraints, room capacities, and student cohort overlaps are strictly enforced.
-              Review schedule details or consult Gemini Copilot for pedagogical analysis.
+              All faculty availability constraints, room capacities, and student cohort overlaps are strictly enforced in real time.
             </p>
 
             <div className="mt-4 p-3 rounded-2xl bg-white/90 border border-[#FDC4CC]/50 text-xs text-gray-700 space-y-1">
@@ -296,12 +286,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </div>
 
           <div className="pt-5 border-t border-[#FDC4CC]/60 flex items-center justify-between mt-4">
-            <span className="text-[11px] text-gray-500 font-mono">Gemini 3.8 Flash</span>
+            <span className="text-[11px] text-gray-500 font-mono">CSP Backtracking</span>
             <button
-              onClick={onOpenAssistant}
+              onClick={() => onNavigate('Timetable')}
               className="text-xs font-bold text-[#FC475C] hover:opacity-80 flex items-center gap-1"
             >
-              <span>Consult Copilot</span>
+              <span>View Timetable Matrix</span>
               <ArrowRight size={14} />
             </button>
           </div>

@@ -15,7 +15,6 @@ import {
   Copy,
   Check,
   Cpu,
-  Sparkles,
   Server,
 } from 'lucide-react';
 import {
@@ -279,45 +278,57 @@ CREATE POLICY "Allow public read and write" ON public.timetables FOR ALL TO anon
           </div>
         </div>
 
-        {/* Right Column: Google Gemini AI Studio Copilot */}
+        {/* Right Column: Tempo CSP Scheduling Engine */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-gradient-to-br from-[#FFF0F2] via-white to-[#F0F8FF] p-6 rounded-3xl border border-[#FDC4CC]/70 shadow-2xs">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-2xl bg-[#FC475C] text-white flex items-center justify-center shadow-xs">
-                <Sparkles size={20} />
+                <Cpu size={20} />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-[#172033]">Google AI Studio Gemini Copilot</h3>
-                <p className="text-xs text-gray-500">Autonomous university operations copilot</p>
+                <h3 className="text-sm font-bold text-[#172033]">Tempo CSP Scheduling Engine</h3>
+                <p className="text-xs text-gray-500">Autonomous university operations &amp; CSP scheduling</p>
               </div>
             </div>
 
             <div className="space-y-3 text-xs">
               <div className="p-3 rounded-2xl bg-white border border-[#edf0f5]">
-                <span className="text-[10px] uppercase font-bold text-gray-400 block">Gemini SDK Version:</span>
-                <span className="font-mono font-bold text-gray-800">@google/genai ^2.4.0</span>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">Solver Algorithm:</span>
+                <span className="font-mono font-bold text-[#FC475C]">Backtracking + MRV &amp; LCV Heuristics</span>
               </div>
 
               <div className="p-3 rounded-2xl bg-white border border-[#edf0f5]">
-                <span className="text-[10px] uppercase font-bold text-gray-400 block">Active Model Alias:</span>
-                <span className="font-mono font-bold text-[#FC475C]">gemini-3.8-flash</span>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">API Endpoints:</span>
+                <span className="font-mono font-bold text-gray-800">/api/timetable/generate &bull; /api/timetable/validate</span>
               </div>
 
               <div className="p-3 rounded-2xl bg-white border border-[#edf0f5]">
                 <span className="text-[10px] uppercase font-bold text-gray-400 block">Architecture:</span>
                 <p className="text-gray-600 mt-0.5 leading-relaxed">
-                  Server-side proxy routes via Express (<code className="text-[#2C3E96] font-mono">/api/assistant</code>), protecting API keys and preventing browser leakage.
+                  Dual-mode execution: Server-side Node.js Express solver with seamless browser-native fallback for offline and GitHub Pages deployments.
                 </p>
               </div>
 
               <div className="p-3 rounded-2xl bg-white border border-[#edf0f5]">
-                <span className="text-[10px] uppercase font-bold text-gray-400 block">Capabilities:</span>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">Optimization Matrix:</span>
                 <ul className="list-disc list-inside space-y-1 text-gray-600 mt-1">
-                  <li>Natural language explanations of CSP decisions</li>
-                  <li>Faculty workload and cognitive fatigue auditing</li>
-                  <li>Campus classroom utilization optimization</li>
-                  <li>Deterministic heuristic fallback if API key is absent</li>
+                  <li>Hard constraint satisfaction (0 room double-booking, 0 instructor overlap)</li>
+                  <li>Soft constraint optimization (faculty workload &amp; cognitive fatigue balancing)</li>
+                  <li>Room capacity matching &amp; laboratory equipment validation</li>
+                  <li>Multi-cohort student group schedule collision prevention</li>
                 </ul>
+              </div>
+
+              <div className="pt-2">
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-[#FFF5F6] to-[#FFF0F2] border border-[#FDC4CC]/50">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#FC475C]" />
+                    <span className="text-[11px] font-bold text-gray-700">Tempo Academic System</span>
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FC475C] bg-white px-2 py-0.5 rounded-md border border-[#FDC4CC]">
+                    Made with Tempo
+                  </span>
+                </div>
               </div>
             </div>
           </div>

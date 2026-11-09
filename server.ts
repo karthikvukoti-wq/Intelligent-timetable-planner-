@@ -7,7 +7,6 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { GoogleGenAI } from '@google/genai';
 import {
   generateCspTimetable,
   validateSchedule,
@@ -17,7 +16,12 @@ import {
   StudentGroup,
   TimetableSlot,
 } from './src/utils/scheduler.ts';
-import { generateAcademicAnalysis } from './src/utils/aiAnalysis.ts';
+import {
+  validateAdminCredentials,
+  createAdminToken,
+  verifyAdminToken,
+  revokeAdminToken,
+} from './src/utils/authServer.ts';
 
 dotenv.config();
 
@@ -29,8 +33,85 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// 1. Timetable Generation API (Constraint Satisfaction Backtracking)
-app.post('/api/timetable/generate', (req: Request, res: Response) => {
+/**
+ * Middleware: Enforce secure administrator session on protected endpoints
+ */
+function requireAdminAuth(req: Request, res: Response, next: () => void) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized: Administrator authentication token required.' });
+  }
+
+  const verification = verifyAdminToken(token);
+  if (!verification.valid || !verification.payload) {
+    return res.status(401).json({ error: `Unauthorized: ${verification.error || 'Invalid session'}` });
+  }
+
+  (req as any).adminUser = verification.payload;
+  next();
+}
+
+// 1. Admin Authentication: Login
+app.post('/api/auth/login', (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body || {};
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Administrator username and password are required.' });
+    }
+
+    const isValid = validateAdminCredentials(String(username), String(password));
+    if (!isValid) {
+      return res.status(401).json({ error: 'Access denied: Invalid administrator credentials.' });
+    }
+
+    const token = createAdminToken(String(username));
+    const { payload } = verifyAdminToken(token);
+
+    return res.json({
+      success: true,
+      token,
+      user: payload,
+    });
+  } catch (err: any) {
+    console.error('Admin login error:', err);
+    return res.status(500).json({ error: 'Internal authentication server error.' });
+  }
+});
+
+// 2. Admin Authentication: Session Verification
+app.get('/api/auth/verify', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ valid: false, error: 'Authorization header missing.' });
+  }
+
+  const result = verifyAdminToken(token);
+  if (!result.valid || !result.payload) {
+    return res.status(401).json({ valid: false, error: result.error || 'Session expired or invalid.' });
+  }
+
+  return res.json({ valid: true, user: result.payload });
+});
+
+// 3. Admin Authentication: Logout & Revocation
+app.post('/api/auth/logout', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (token) {
+    revokeAdminToken(token);
+  }
+
+  return res.json({ success: true, message: 'Logged out successfully.' });
+});
+
+// 1. Timetable Generation API (Constraint Satisfaction Backtracking - Protected)
+app.post('/api/timetable/generate', requireAdminAuth, (req: Request, res: Response) => {
   try {
     const { courses, rooms, faculty, groups } = req.body as {
       courses: Course[];
@@ -61,8 +142,8 @@ app.post('/api/timetable/generate', (req: Request, res: Response) => {
   }
 });
 
-// 2. Schedule Validation API
-app.post('/api/timetable/validate', (req: Request, res: Response) => {
+// 2. Schedule Validation API (Protected)
+app.post('/api/timetable/validate', requireAdminAuth, (req: Request, res: Response) => {
   try {
     const { slots, rooms, faculty, groups, courses } = req.body as {
       slots: TimetableSlot[];
@@ -84,62 +165,6 @@ app.post('/api/timetable/validate', (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Schedule validation error:', err);
     return res.status(500).json({ error: err.message || 'Schedule validation error.' });
-  }
-});
-
-// 3. Gemini Academic Copilot Assistant API
-app.post('/api/assistant', async (req: Request, res: Response) => {
-  try {
-    const { question, timetable, context } = req.body;
-
-    if (!question || typeof question !== 'string' || question.trim().length === 0) {
-      return res.status(400).json({ error: 'Question is required.' });
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    // If Gemini API key is available, call Gemini 3.8 Flash
-    if (apiKey) {
-      try {
-        const ai = new GoogleGenAI();
-        const systemPrompt = `You are the Tempo Academic AI Copilot, an expert university academic scheduler and operations research specialist.
-You analyze university timetable constraints, faculty teaching loads, classroom utilization, room capacity bottlenecks, and student cohort schedules.
-Tone: Professional, articulate, structured, and pedagogical.
-
-Context of the active timetable:
-- Total Scheduled Sessions: ${context?.totalSessions || (timetable ? timetable.length : 0)}
-- Total Courses: ${context?.totalCourses || 'N/A'}
-- Active Faculty: ${context?.totalFaculty || 'N/A'}
-- Available Rooms: ${context?.totalRooms || 'N/A'}
-- Overall CSP Quality Score: ${context?.score || 100}%
-- Hard Conflicts: ${context?.hardConflicts || 0}
-- Daily Load Distribution: ${JSON.stringify(context?.dailyDistribution || {})}
-
-Sample of active scheduled slots:
-${JSON.stringify((timetable || []).slice(0, 15), null, 2)}
-
-Provide concise, highly informative, and directly actionable guidance regarding timetable structure, constraint satisfaction, and pedagogical load balancing.`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [
-            { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Question:\n${question}` }] },
-          ],
-        });
-
-        const answer = response.text || 'No response generated from Gemini.';
-        return res.json({ answer, isFallback: false });
-      } catch (geminiError: any) {
-        console.warn('Gemini API call failed, using heuristic fallback:', geminiError.message);
-      }
-    }
-
-    // Heuristic Fallback Analysis if no API key or API call issue
-    const heuristicResponse = generateAcademicAnalysis(question, context);
-    return res.json({ answer: heuristicResponse, isFallback: true });
-  } catch (err: any) {
-    console.error('Assistant API error:', err);
-    return res.status(500).json({ error: err.message || 'Copilot assistant error.' });
   }
 });
 

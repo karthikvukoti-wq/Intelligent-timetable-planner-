@@ -13,7 +13,6 @@ import {
   GraduationCap,
   BarChart3,
   Settings,
-  Sparkles,
   LogOut,
   X,
   Clock,
@@ -25,7 +24,6 @@ interface SidebarProps {
   onSelectPage: (page: string) => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
-  onOpenAssistant: () => void;
   slotsCount: number;
   user: any;
   onLogout: () => void;
@@ -36,7 +34,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectPage,
   mobileOpen,
   onCloseMobile,
-  onOpenAssistant,
   slotsCount,
   user,
   onLogout,
@@ -137,28 +134,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          {/* AI Copilot Callout */}
+          {/* Made with Tempo Branding Badge */}
           <div className="pt-4">
-            <button
-              onClick={() => {
-                onOpenAssistant();
-                onCloseMobile();
-              }}
-              className="w-full text-left p-3.5 rounded-2xl bg-gradient-to-br from-[#FFF0F2] via-[#FFF7EE] to-[#F3F5FE] border border-[#FDC4CC]/70 hover:shadow-md transition group"
-            >
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-6 h-6 rounded-lg bg-[#FC475C] text-white flex items-center justify-center shadow-xs">
-                  <Sparkles size={13} />
-                </div>
-                <span className="text-xs font-black text-[#172033]">Tempo Copilot</span>
-                <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded bg-white text-[#29689E] border border-blue-100">
-                  Gemini
-                </span>
+            <div className="p-3.5 rounded-2xl bg-[#FAFAFA] border border-[#edf0f5] flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-xl bg-linear-to-tr from-[#FC475C] to-[#FDB365] flex items-center justify-center text-white shrink-0 shadow-xs">
+                <Clock size={14} className="stroke-[2.5]" />
               </div>
-              <p className="text-[11px] text-gray-600 leading-snug">
-                Ask constraint questions, verify bottlenecks & optimize scheduling.
-              </p>
-            </button>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black text-[#172033] tracking-tight">Made with Tempo</p>
+                <p className="text-[10px] text-gray-400 font-semibold truncate">Intelligent Timetable</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -166,16 +152,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-4 border-t border-[#f1f3f9] bg-[#FAFAFA]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-[#6558e8] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-                {user?.email ? user.email.slice(0, 2).toUpperCase() : 'AD'}
+              <div className="w-8 h-8 rounded-xl bg-[#172033] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                {user?.username ? user.username.slice(0, 2).toUpperCase() : 'AD'}
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-[#172033] truncate">
-                  {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Administrator'}
+                  {user?.name || user?.user_metadata?.full_name || user?.username || 'Administrator'}
                 </p>
-                <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold">
+                <div className="flex items-center gap-1 text-[10px] text-[#FC475C] font-semibold">
                   <ShieldCheck size={11} />
-                  <span>RLS Verified</span>
+                  <span>{user?.role || 'Administrator'}</span>
                 </div>
               </div>
             </div>

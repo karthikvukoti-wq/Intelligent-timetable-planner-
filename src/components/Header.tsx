@@ -4,12 +4,11 @@
  */
 
 import React from 'react';
-import { Menu, Sparkles, CheckCircle2, AlertTriangle, Database, Settings, LogOut } from 'lucide-react';
+import { Menu, CheckCircle2, AlertTriangle, Database, Settings, LogOut } from 'lucide-react';
 
 interface HeaderProps {
   currentPage: string;
   onOpenMobile: () => void;
-  onOpenAssistant: () => void;
   onOpenSettings: () => void;
   isSupabaseConfigured: boolean;
   validationScore: number;
@@ -20,7 +19,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentPage,
   onOpenMobile,
-  onOpenAssistant,
   onOpenSettings,
   isSupabaseConfigured,
   validationScore,
@@ -72,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
       default:
         return {
           title: 'Timetable Planner',
-          subtitle: 'Constraint-Satisfaction Scheduling & Gemini AI Assistant',
+          subtitle: 'Constraint-Satisfaction Scheduling & Optimization Matrix',
         };
     }
   };
@@ -131,15 +129,6 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-[11px]">
             {isSupabaseConfigured ? 'Supabase Active' : 'Local Storage'}
           </span>
-        </button>
-
-        {/* AI Assistant Button */}
-        <button
-          onClick={onOpenAssistant}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-linear-to-r from-[#FC475C] to-[#FDB365] hover:opacity-95 shadow-sm shadow-[#FC475C]/25 transition active:scale-95"
-        >
-          <Sparkles size={14} />
-          <span className="hidden sm:inline">Tempo AI</span>
         </button>
 
         {/* Settings Button */}

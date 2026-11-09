@@ -28,6 +28,7 @@ export const STORAGE_KEYS = {
   SUPABASE_URL: 'tempo_supabase_url',
   SUPABASE_KEY: 'tempo_supabase_key',
   AUTH_SESSION: 'tempo_auth_session',
+  AUTH_TOKEN: 'tempo_admin_token',
 };
 
 export const INITIAL_GROUPS: StudentGroup[] = [

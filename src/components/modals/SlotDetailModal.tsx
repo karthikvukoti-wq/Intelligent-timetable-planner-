@@ -4,16 +4,15 @@
  */
 
 import React from 'react';
-import { X, Sparkles, CheckCircle2, Clock, Building2, User, GraduationCap } from 'lucide-react';
+import { X, CheckCircle2, Clock, Building2, User, GraduationCap } from 'lucide-react';
 import { TimetableSlot, getCourseColor } from '../../utils/scheduler.ts';
 
 interface SlotDetailModalProps {
   slot: TimetableSlot | null;
   onClose: () => void;
-  onAskAi: (question: string) => void;
 }
 
-export const SlotDetailModal: React.FC<SlotDetailModalProps> = ({ slot, onClose, onAskAi }) => {
+export const SlotDetailModal: React.FC<SlotDetailModalProps> = ({ slot, onClose }) => {
   if (!slot) return null;
 
   const color = getCourseColor(slot.courseCode);
@@ -96,20 +95,6 @@ export const SlotDetailModal: React.FC<SlotDetailModalProps> = ({ slot, onClose,
               <p className="text-xs font-black text-[#172033]">{slot.groupName}</p>
               <p className="text-[10px] text-gray-400">{slot.semester}</p>
             </div>
-          </div>
-
-          {/* Ask AI Trigger */}
-          <div className="pt-2">
-            <button
-              onClick={() => {
-                onAskAi(`Why was ${slot.courseCode} (${slot.courseName}) scheduled on ${slot.day} at ${slot.start} in room ${slot.roomName}?`);
-                onClose();
-              }}
-              className="w-full py-3 rounded-2xl bg-linear-to-r from-[#FFF0F2] via-[#FFF7EE] to-[#F3F5FE] hover:opacity-90 text-[#FC475C] border border-[#FDC4CC] text-xs font-bold flex items-center justify-center gap-2 transition shadow-xs active:scale-95"
-            >
-              <Sparkles size={15} />
-              <span>Ask AI: Why was this slot selected?</span>
-            </button>
           </div>
         </div>
       </div>
