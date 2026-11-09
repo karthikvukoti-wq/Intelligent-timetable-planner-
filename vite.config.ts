@@ -9,7 +9,9 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig(({ command }) => {
   return {
-    base: process.env.VITE_BASE_PATH || '/Intelligent-timetable-planner-/',
+    base: process.env.GITHUB_PAGES === 'true'
+      ? '/Intelligent-timetable-planner-/'
+      : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
