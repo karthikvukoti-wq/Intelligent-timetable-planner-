@@ -118,12 +118,20 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Supabase Pill */}
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F0F8FF] text-[#13548E] border border-[#CCE5FC] text-xs font-semibold">
-          <Database size={12} className="text-[#479FEA]" />
+        <button
+          onClick={onOpenSettings}
+          className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition cursor-pointer hover:opacity-80 ${
+            isSupabaseConfigured
+              ? 'bg-[#F0F8FF] text-[#13548E] border-[#CCE5FC]'
+              : 'bg-[#FFF9EB] text-[#8A5B00] border-[#FDE6B4]'
+          }`}
+          title={isSupabaseConfigured ? 'Supabase Active • Click to view settings' : 'Local Storage Mode • Click to configure Supabase'}
+        >
+          <Database size={12} className={isSupabaseConfigured ? 'text-[#479FEA]' : 'text-[#D98A0D]'} />
           <span className="text-[11px]">
             {isSupabaseConfigured ? 'Supabase Active' : 'Local Storage'}
           </span>
-        </div>
+        </button>
 
         {/* AI Assistant Button */}
         <button

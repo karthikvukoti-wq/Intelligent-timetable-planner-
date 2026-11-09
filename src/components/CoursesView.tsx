@@ -86,8 +86,27 @@ export const CoursesView: React.FC<CoursesViewProps> = ({
       </div>
 
       {/* Courses Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((course) => {
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-[#edf0f5] p-12 text-center shadow-2xs">
+          <BookOpen size={36} className="mx-auto text-gray-300 mb-3" />
+          <h3 className="text-sm font-bold text-gray-700">No courses found</h3>
+          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+            {courses.length === 0
+              ? 'No courses are currently stored. Add a new course or sync from Supabase.'
+              : 'No courses match the active search or department filter.'}
+          </p>
+          {courses.length === 0 && (
+            <button
+              onClick={onAddCourse}
+              className="mt-4 px-4 py-2 text-xs font-bold text-white bg-[#FC475C] rounded-xl hover:opacity-90 transition"
+            >
+              Add First Course
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((course) => {
           const color = getCourseColor(course.code);
           return (
             <div
@@ -168,7 +187,8 @@ export const CoursesView: React.FC<CoursesViewProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

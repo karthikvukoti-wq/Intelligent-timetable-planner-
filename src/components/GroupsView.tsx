@@ -68,7 +68,26 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       </div>
 
       {/* Groups Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-[#edf0f5] p-12 text-center shadow-2xs">
+          <GraduationCap size={36} className="mx-auto text-gray-300 mb-3" />
+          <h3 className="text-sm font-bold text-gray-700">No student cohorts found</h3>
+          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+            {groups.length === 0
+              ? 'No student groups registered. Add batches or sync from Supabase.'
+              : 'No cohorts match the active search filter.'}
+          </p>
+          {groups.length === 0 && (
+            <button
+              onClick={onAddGroup}
+              className="mt-4 px-4 py-2 text-xs font-bold text-white bg-[#FC475C] rounded-xl hover:opacity-90 transition"
+            >
+              Add Student Cohort
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((grp) => {
           const groupCourses = courses.filter((c) => c.groupId === grp.id);
           const groupSlots = slots.filter((s) => s.groupId === grp.id);
@@ -173,7 +192,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

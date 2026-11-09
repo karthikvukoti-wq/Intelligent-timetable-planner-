@@ -44,7 +44,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS public.academic_groups (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name text NOT NULL,
   student_count int NOT NULL DEFAULT 0,
   semester text NOT NULL DEFAULT 'Semester 3',
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS public.academic_groups (
 );
 
 CREATE TABLE IF NOT EXISTS public.faculty (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name text NOT NULL,
   email text UNIQUE,
   department text,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS public.faculty (
 );
 
 CREATE TABLE IF NOT EXISTS public.rooms (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name text UNIQUE NOT NULL,
   room_type text NOT NULL CHECK (room_type IN ('Lecture', 'Lab', 'Seminar')),
   capacity int NOT NULL CHECK (capacity > 0),
@@ -72,11 +72,11 @@ CREATE TABLE IF NOT EXISTS public.rooms (
 );
 
 CREATE TABLE IF NOT EXISTS public.courses (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   code text UNIQUE NOT NULL,
   name text NOT NULL,
-  faculty_id uuid REFERENCES public.faculty(id) ON DELETE SET NULL,
-  group_id uuid REFERENCES public.academic_groups(id) ON DELETE CASCADE,
+  faculty_id text REFERENCES public.faculty(id) ON DELETE SET NULL,
+  group_id text REFERENCES public.academic_groups(id) ON DELETE CASCADE,
   room_type text NOT NULL DEFAULT 'Lecture',
   duration int NOT NULL DEFAULT 1,
   weekly_sessions int NOT NULL DEFAULT 2,
@@ -87,9 +87,9 @@ CREATE TABLE IF NOT EXISTS public.courses (
 );
 
 CREATE TABLE IF NOT EXISTS public.timetables (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name text NOT NULL,
-  group_id uuid REFERENCES public.academic_groups(id) ON DELETE CASCADE,
+  group_id text REFERENCES public.academic_groups(id) ON DELETE CASCADE,
   status text NOT NULL DEFAULT 'published',
   score int DEFAULT 100,
   sessions_count int DEFAULT 0,
@@ -104,11 +104,12 @@ ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.timetables ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow authenticated read and write" ON public.academic_groups FOR ALL USING (true);
-CREATE POLICY "Allow authenticated read and write" ON public.faculty FOR ALL USING (true);
-CREATE POLICY "Allow authenticated read and write" ON public.rooms FOR ALL USING (true);
-CREATE POLICY "Allow authenticated read and write" ON public.courses FOR ALL USING (true);
-CREATE POLICY "Allow authenticated read and write" ON public.timetables FOR ALL USING (true);`;
+-- Allow anon and authenticated read & write
+CREATE POLICY "Allow public read and write" ON public.academic_groups FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read and write" ON public.faculty FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read and write" ON public.rooms FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read and write" ON public.courses FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read and write" ON public.timetables FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);`;
 
   const handleSaveCredentials = (e: React.FormEvent) => {
     e.preventDefault();

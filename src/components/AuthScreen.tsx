@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Clock, ShieldCheck, Sparkles, Database, ArrowRight, Lock, Mail, User, AlertTriangle } from 'lucide-react';
-import { getSupabaseClient } from '../utils/storage.ts';
+import { getSupabaseClient, isSupabaseConfigured } from '../utils/storage.ts';
 
 interface AuthScreenProps {
   onAuthenticated: (user: any) => void;
@@ -19,6 +19,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const configured = isSupabaseConfigured();
 
   const handleDemoSignIn = () => {
     const demoUser = {
@@ -41,13 +42,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
 
     try {
       const client = getSupabaseClient();
+      if (!client) {
+        if (email === 'admin@vignan.edu' && password === 'tempo2026') {
+          handleDemoSignIn();
+          return;
+        }
+        setError(
+          'Supabase is not configured yet. You can sign in using One-Click Demo Admin or configure your Supabase Project URL and Anon Key in Settings.'
+        );
+        return;
+      }
+
       const { data, error: signInError } = await client.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
 
       if (signInError) {
-        // If Supabase not reachable or credentials fail, allow quick demo login
         if (email === 'admin@vignan.edu' && password === 'tempo2026') {
           handleDemoSignIn();
           return;
@@ -73,6 +84,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
 
     try {
       const client = getSupabaseClient();
+      if (!client) {
+        setError(
+          'Supabase database is not configured. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to register live accounts.'
+        );
+        return;
+      }
+
       const { data, error: signUpError } = await client.auth.signUp({
         email: email.trim(),
         password,

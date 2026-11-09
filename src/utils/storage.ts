@@ -291,30 +291,80 @@ let supabaseInstance: SupabaseClient | null = null;
 
 export function getSupabaseUrl(): string {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem(STORAGE_KEYS.SUPABASE_URL) || window.location.origin;
+    const stored = localStorage.getItem(STORAGE_KEYS.SUPABASE_URL);
+    if (stored && stored.trim()) return stored.trim();
   }
-  return 'http://localhost:3000';
+  const envUrl =
+    typeof import.meta !== 'undefined' && import.meta.env
+      ? (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL)
+      : undefined;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.trim();
+  }
+  return '';
 }
 
 export function getSupabaseKey(): string {
   if (typeof window !== 'undefined') {
-    const k = localStorage.getItem(STORAGE_KEYS.SUPABASE_KEY);
-    if (k) return k;
+    const stored = localStorage.getItem(STORAGE_KEYS.SUPABASE_KEY);
+    if (stored && stored.trim()) return stored.trim();
   }
-  return 'tempo-supabase-anon-key-v1';
+  const envKey =
+    typeof import.meta !== 'undefined' && import.meta.env
+      ? (import.meta.env.VITE_SUPABASE_ANON_KEY ||
+         import.meta.env.VITE_SUPABASE_KEY ||
+         import.meta.env.SUPABASE_ANON_KEY)
+      : undefined;
+  if (envKey && typeof envKey === 'string' && envKey.trim()) {
+    return envKey.trim();
+  }
+  return '';
 }
 
-export function getSupabaseClient(): SupabaseClient {
+export function isSupabaseConfigured(): boolean {
+  const url = getSupabaseUrl();
+  const key = getSupabaseKey();
+  if (!url || !key) return false;
+  if (typeof window !== 'undefined') {
+    if (url === window.location.origin || url === window.location.href) return false;
+  }
+  if (
+    url.startsWith('/') ||
+    url === 'http://localhost:3000' ||
+    url === 'http://127.0.0.1:3000'
+  ) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    if (!parsed.protocol.startsWith('http')) return false;
+    return key.length >= 20 && key !== 'tempo-supabase-anon-key-v1';
+  } catch {
+    return false;
+  }
+}
+
+export function getSupabaseClient(): SupabaseClient | null {
+  if (!isSupabaseConfigured()) {
+    supabaseInstance = null;
+    return null;
+  }
+  const url = getSupabaseUrl();
+  const key = getSupabaseKey();
   if (!supabaseInstance) {
-    const url = getSupabaseUrl();
-    const key = getSupabaseKey();
-    supabaseInstance = createClient(url, key, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    });
+    try {
+      supabaseInstance = createClient(url, key, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to initialize Supabase client:', err);
+      supabaseInstance = null;
+      return null;
+    }
   }
   return supabaseInstance;
 }
@@ -339,7 +389,7 @@ export function getSupabaseConfig(): { url: string; key: string; isConfigured: b
   return {
     url: getSupabaseUrl(),
     key: getSupabaseKey(),
-    isConfigured: true,
+    isConfigured: isSupabaseConfigured(),
   };
 }
 
@@ -374,7 +424,18 @@ export class TimetableStore {
   }
 
   public static async syncWithSupabase(): Promise<{ success: boolean; message: string }> {
+    if (!isSupabaseConfigured()) {
+      return {
+        success: false,
+        message: 'Supabase credentials not configured. Operating in local storage mode.',
+      };
+    }
+
     const client = getSupabaseClient();
+    if (!client) {
+      return { success: false, message: 'Supabase client could not be initialized.' };
+    }
+
     try {
       const [coursesRes, facultyRes, roomsRes, groupsRes, timetablesRes] = await Promise.all([
         client.from('courses').select('*'),
@@ -384,19 +445,36 @@ export class TimetableStore {
         client.from('timetables').select('*'),
       ]);
 
+      const errors = [
+        coursesRes.error,
+        facultyRes.error,
+        roomsRes.error,
+        groupsRes.error,
+        timetablesRes.error,
+      ].filter(Boolean);
+
+      if (errors.length > 0) {
+        const errorMsg = errors.map((e) => e?.message).join(' | ');
+        console.warn('Supabase query error:', errorMsg);
+        return {
+          success: false,
+          message: `Database query error: ${errorMsg}`,
+        };
+      }
+
       if (coursesRes.data && coursesRes.data.length > 0) {
         this.courses = coursesRes.data.map((c: any) => ({
-          id: c.id,
+          id: String(c.id),
           code: c.code,
           name: c.name,
-          facultyId: c.facultyId || c.faculty_id || '',
+          facultyId: c.faculty_id || c.facultyId || '',
           facultyName: c.facultyName || '',
-          groupId: c.groupId || c.group_id || '',
+          groupId: c.group_id || c.groupId || '',
           groupName: c.groupName || '',
-          roomType: c.roomType || c.room_type || 'Lecture',
+          roomType: c.room_type || c.roomType || 'Lecture',
           duration: Number(c.duration) || 1,
-          weeklySessions: Number(c.weeklySessions || c.weekly_sessions) || 3,
-          studentCount: Number(c.studentCount) || 50,
+          weeklySessions: Number(c.weekly_sessions || c.weeklySessions) || 3,
+          studentCount: Number(c.student_count || c.studentCount) || 50,
           department: c.department || 'Computer Science',
           semester: c.semester || 'Semester 3',
         }));
@@ -405,11 +483,11 @@ export class TimetableStore {
 
       if (facultyRes.data && facultyRes.data.length > 0) {
         this.faculty = facultyRes.data.map((f: any) => ({
-          id: f.id,
+          id: String(f.id),
           name: f.name,
           email: f.email || '',
           department: f.department || 'Computer Science',
-          maxWeeklyHours: Number(f.maxWeeklyHours || f.max_weekly_hours) || 16,
+          maxWeeklyHours: Number(f.max_weekly_hours || f.maxWeeklyHours) || 16,
           availability: f.availability || {
             Monday: ['09:00-16:30'],
             Tuesday: ['09:00-16:30'],
@@ -423,9 +501,9 @@ export class TimetableStore {
 
       if (roomsRes.data && roomsRes.data.length > 0) {
         this.rooms = roomsRes.data.map((r: any) => ({
-          id: r.id,
+          id: String(r.id),
           name: r.name,
-          type: r.type || r.room_type || 'Lecture',
+          type: r.room_type || r.type || 'Lecture',
           capacity: Number(r.capacity) || 60,
           building: r.building || 'Main Campus',
         }));
@@ -434,9 +512,9 @@ export class TimetableStore {
 
       if (groupsRes.data && groupsRes.data.length > 0) {
         this.groups = groupsRes.data.map((g: any) => ({
-          id: g.id,
+          id: String(g.id),
           name: g.name,
-          studentCount: Number(g.studentCount || g.student_count) || 50,
+          studentCount: Number(g.student_count || g.studentCount) || 50,
           semester: g.semester || 'Semester 3',
           department: g.department || 'Computer Science',
           preferredStart: g.preferredStart || '09:00',
@@ -449,7 +527,7 @@ export class TimetableStore {
 
       if (timetablesRes.data && timetablesRes.data.length > 0) {
         this.savedTimetables = timetablesRes.data.map((t: any) => ({
-          id: t.id,
+          id: String(t.id),
           name: t.name,
           group_id: t.group_id,
           status: t.status || 'published',
@@ -485,26 +563,26 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.COURSES, this.courses);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('courses').insert([
-        {
-          id: newCourse.id,
-          code: newCourse.code,
-          name: newCourse.name,
-          faculty_id: newCourse.facultyId,
-          facultyName: newCourse.facultyName,
-          group_id: newCourse.groupId,
-          groupName: newCourse.groupName,
-          room_type: newCourse.roomType,
-          duration: newCourse.duration,
-          weekly_sessions: newCourse.weeklySessions,
-          studentCount: newCourse.studentCount,
-          department: newCourse.department,
-          semester: newCourse.semester,
-        },
-      ]);
-    } catch (err) {
-      console.warn('Supabase addCourse error:', err);
+    if (client) {
+      try {
+        await client.from('courses').insert([
+          {
+            id: newCourse.id,
+            code: newCourse.code,
+            name: newCourse.name,
+            faculty_id: newCourse.facultyId || null,
+            group_id: newCourse.groupId || null,
+            room_type: newCourse.roomType,
+            duration: newCourse.duration,
+            weekly_sessions: newCourse.weeklySessions,
+            student_count: newCourse.studentCount,
+            department: newCourse.department,
+            semester: newCourse.semester,
+          },
+        ]);
+      } catch (err) {
+        console.warn('Supabase addCourse error:', err);
+      }
     }
 
     return newCourse;
@@ -518,10 +596,24 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.COURSES, this.courses);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('courses').update(updates).eq('id', id);
-    } catch (err) {
-      console.warn('Supabase updateCourse error:', err);
+    if (client) {
+      try {
+        const payload: Record<string, any> = {};
+        if (updates.code !== undefined) payload.code = updates.code;
+        if (updates.name !== undefined) payload.name = updates.name;
+        if (updates.facultyId !== undefined) payload.faculty_id = updates.facultyId || null;
+        if (updates.groupId !== undefined) payload.group_id = updates.groupId || null;
+        if (updates.roomType !== undefined) payload.room_type = updates.roomType;
+        if (updates.duration !== undefined) payload.duration = updates.duration;
+        if (updates.weeklySessions !== undefined) payload.weekly_sessions = updates.weeklySessions;
+        if (updates.studentCount !== undefined) payload.student_count = updates.studentCount;
+        if (updates.department !== undefined) payload.department = updates.department;
+        if (updates.semester !== undefined) payload.semester = updates.semester;
+
+        await client.from('courses').update(payload).eq('id', id);
+      } catch (err) {
+        console.warn('Supabase updateCourse error:', err);
+      }
     }
 
     return updated;
@@ -532,10 +624,12 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.COURSES, this.courses);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('courses').delete().eq('id', id);
-    } catch (err) {
-      console.warn('Supabase deleteCourse error:', err);
+    if (client) {
+      try {
+        await client.from('courses').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase deleteCourse error:', err);
+      }
     }
 
     return true;
@@ -555,10 +649,21 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.FACULTY, this.faculty);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('faculty').insert([newFac]);
-    } catch (err) {
-      console.warn('Supabase addFaculty error:', err);
+    if (client) {
+      try {
+        await client.from('faculty').insert([
+          {
+            id: newFac.id,
+            name: newFac.name,
+            email: newFac.email || null,
+            department: newFac.department,
+            max_weekly_hours: newFac.maxWeeklyHours,
+            availability: newFac.availability,
+          },
+        ]);
+      } catch (err) {
+        console.warn('Supabase addFaculty error:', err);
+      }
     }
 
     return newFac;
@@ -579,10 +684,19 @@ export class TimetableStore {
     }
 
     const client = getSupabaseClient();
-    try {
-      await client.from('faculty').update(updates).eq('id', id);
-    } catch (err) {
-      console.warn('Supabase updateFaculty error:', err);
+    if (client) {
+      try {
+        const payload: Record<string, any> = {};
+        if (updates.name !== undefined) payload.name = updates.name;
+        if (updates.email !== undefined) payload.email = updates.email || null;
+        if (updates.department !== undefined) payload.department = updates.department;
+        if (updates.maxWeeklyHours !== undefined) payload.max_weekly_hours = updates.maxWeeklyHours;
+        if (updates.availability !== undefined) payload.availability = updates.availability;
+
+        await client.from('faculty').update(payload).eq('id', id);
+      } catch (err) {
+        console.warn('Supabase updateFaculty error:', err);
+      }
     }
 
     return updated;
@@ -593,10 +707,12 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.FACULTY, this.faculty);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('faculty').delete().eq('id', id);
-    } catch (err) {
-      console.warn('Supabase deleteFaculty error:', err);
+    if (client) {
+      try {
+        await client.from('faculty').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase deleteFaculty error:', err);
+      }
     }
 
     return true;
@@ -616,10 +732,20 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.ROOMS, this.rooms);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('rooms').insert([newRoom]);
-    } catch (err) {
-      console.warn('Supabase addRoom error:', err);
+    if (client) {
+      try {
+        await client.from('rooms').insert([
+          {
+            id: newRoom.id,
+            name: newRoom.name,
+            room_type: newRoom.type,
+            capacity: newRoom.capacity,
+            building: newRoom.building,
+          },
+        ]);
+      } catch (err) {
+        console.warn('Supabase addRoom error:', err);
+      }
     }
 
     return newRoom;
@@ -633,10 +759,18 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.ROOMS, this.rooms);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('rooms').update(updates).eq('id', id);
-    } catch (err) {
-      console.warn('Supabase updateRoom error:', err);
+    if (client) {
+      try {
+        const payload: Record<string, any> = {};
+        if (updates.name !== undefined) payload.name = updates.name;
+        if (updates.type !== undefined) payload.room_type = updates.type;
+        if (updates.capacity !== undefined) payload.capacity = updates.capacity;
+        if (updates.building !== undefined) payload.building = updates.building;
+
+        await client.from('rooms').update(payload).eq('id', id);
+      } catch (err) {
+        console.warn('Supabase updateRoom error:', err);
+      }
     }
 
     return updated;
@@ -647,10 +781,12 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.ROOMS, this.rooms);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('rooms').delete().eq('id', id);
-    } catch (err) {
-      console.warn('Supabase deleteRoom error:', err);
+    if (client) {
+      try {
+        await client.from('rooms').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase deleteRoom error:', err);
+      }
     }
 
     return true;
@@ -670,10 +806,20 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.GROUPS, this.groups);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('academic_groups').insert([newGroup]);
-    } catch (err) {
-      console.warn('Supabase addGroup error:', err);
+    if (client) {
+      try {
+        await client.from('academic_groups').insert([
+          {
+            id: newGroup.id,
+            name: newGroup.name,
+            student_count: newGroup.studentCount,
+            semester: newGroup.semester,
+            department: newGroup.department,
+          },
+        ]);
+      } catch (err) {
+        console.warn('Supabase addGroup error:', err);
+      }
     }
 
     return newGroup;
@@ -694,10 +840,18 @@ export class TimetableStore {
     }
 
     const client = getSupabaseClient();
-    try {
-      await client.from('academic_groups').update(updates).eq('id', id);
-    } catch (err) {
-      console.warn('Supabase updateGroup error:', err);
+    if (client) {
+      try {
+        const payload: Record<string, any> = {};
+        if (updates.name !== undefined) payload.name = updates.name;
+        if (updates.studentCount !== undefined) payload.student_count = updates.studentCount;
+        if (updates.semester !== undefined) payload.semester = updates.semester;
+        if (updates.department !== undefined) payload.department = updates.department;
+
+        await client.from('academic_groups').update(payload).eq('id', id);
+      } catch (err) {
+        console.warn('Supabase updateGroup error:', err);
+      }
     }
 
     return updated;
@@ -708,10 +862,12 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.GROUPS, this.groups);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('academic_groups').delete().eq('id', id);
-    } catch (err) {
-      console.warn('Supabase deleteGroup error:', err);
+    if (client) {
+      try {
+        await client.from('academic_groups').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase deleteGroup error:', err);
+      }
     }
 
     return true;
@@ -752,10 +908,22 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.TIMETABLES, this.savedTimetables);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('timetables').insert([record]);
-    } catch (err) {
-      console.warn('Supabase saveTimetable error:', err);
+    if (client) {
+      try {
+        await client.from('timetables').insert([
+          {
+            id: record.id,
+            name: record.name,
+            group_id: record.group_id || null,
+            status: record.status,
+            score: record.score,
+            sessions_count: record.sessions_count,
+            slots: record.slots,
+          },
+        ]);
+      } catch (err) {
+        console.warn('Supabase saveTimetable error:', err);
+      }
     }
 
     return record;
@@ -766,10 +934,12 @@ export class TimetableStore {
     setStoredItem(STORAGE_KEYS.TIMETABLES, this.savedTimetables);
 
     const client = getSupabaseClient();
-    try {
-      await client.from('timetables').delete().eq('id', id);
-    } catch (err) {
-      console.warn('Supabase deleteTimetable error:', err);
+    if (client) {
+      try {
+        await client.from('timetables').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase deleteTimetable error:', err);
+      }
     }
 
     return true;
@@ -802,13 +972,26 @@ export class TimetableStore {
   }
 
   public static async testSupabaseConnection(): Promise<{ success: boolean; message: string }> {
+    if (!isSupabaseConfigured()) {
+      return {
+        success: false,
+        message:
+          'Supabase is not configured. Please enter a valid Project URL (https://<project-ref>.supabase.co) and public Anon Key.',
+      };
+    }
     const client = getSupabaseClient();
+    if (!client) {
+      return {
+        success: false,
+        message: 'Could not initialize Supabase client with the provided credentials.',
+      };
+    }
     try {
       const { error } = await client.from('academic_groups').select('id, name').limit(1);
       if (error) {
         return {
           success: false,
-          message: `Database query error: ${error.message}`,
+          message: `Database query error: ${error.message} (Code: ${error.code || 'UNKNOWN'})`,
         };
       }
       return {

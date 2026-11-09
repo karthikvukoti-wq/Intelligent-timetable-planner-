@@ -41,6 +41,7 @@ import {
   TimetableStore,
   getSupabaseClient,
   getSupabaseConfig,
+  isSupabaseConfigured,
   SavedTimetable,
   STORAGE_KEYS,
 } from './utils/storage.ts';
@@ -63,6 +64,10 @@ export default function App() {
   // Status & notifications
   const [isGenerating, setIsGenerating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [dbStatus, setDbStatus] = useState<{ isSyncing: boolean; error: string | null }>({
+    isSyncing: false,
+    error: null,
+  });
 
   // Modals state
   const [courseModalOpen, setCourseModalOpen] = useState(false);
@@ -128,47 +133,70 @@ export default function App() {
   useEffect(() => {
     const client = getSupabaseClient();
 
-    client.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        TimetableStore.syncWithSupabase().then(() => reloadData());
-      } else {
-        const localSession = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
-        if (localSession) {
-          try {
-            setUser(JSON.parse(localSession));
+    if (client) {
+      client.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          setUser(session.user);
+          setDbStatus({ isSyncing: true, error: null });
+          TimetableStore.syncWithSupabase().then((res) => {
+            setDbStatus({ isSyncing: false, error: res.success ? null : res.message });
             reloadData();
-          } catch {
-            setUser(null);
+          });
+        } else {
+          const localSession = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
+          if (localSession) {
+            try {
+              setUser(JSON.parse(localSession));
+              reloadData();
+            } catch {
+              setUser(null);
+            }
           }
+        }
+        setIsLoadingSession(false);
+      });
+
+      const {
+        data: { subscription },
+      } = client.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session.user));
+          setDbStatus({ isSyncing: true, error: null });
+          TimetableStore.syncWithSupabase().then((res) => {
+            setDbStatus({ isSyncing: false, error: res.success ? null : res.message });
+            reloadData();
+          });
+        } else {
+          setUser(null);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+        }
+        setIsLoadingSession(false);
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    } else {
+      const localSession = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
+      if (localSession) {
+        try {
+          setUser(JSON.parse(localSession));
+          reloadData();
+        } catch {
+          setUser(null);
         }
       }
       setIsLoadingSession(false);
-    });
-
-    const {
-      data: { subscription },
-    } = client.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-        localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session.user));
-        TimetableStore.syncWithSupabase().then(() => reloadData());
-      } else {
-        setUser(null);
-        localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
-      }
-      setIsLoadingSession(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    }
   }, []);
 
   // Logout handler
   const handleLogout = async () => {
     const client = getSupabaseClient();
-    await client.auth.signOut().catch(() => {});
+    if (client) {
+      await client.auth.signOut().catch(() => {});
+    }
     localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
     setUser(null);
     showNotice('Signed out of academic workspace.');
@@ -473,6 +501,39 @@ export default function App() {
           user={user}
           onLogout={handleLogout}
         />
+
+        {/* Database Status Alerts */}
+        {dbStatus.isSyncing && (
+          <div className="mx-4 sm:mx-8 mt-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-2 text-xs text-blue-800 animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            <span>Synchronizing workspace with Supabase PostgreSQL...</span>
+          </div>
+        )}
+
+        {dbStatus.error && (
+          <div className="mx-4 sm:mx-8 mt-3 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-2xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+              <span className="truncate">
+                <strong>Database Sync Notice:</strong> {dbStatus.error}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              <button
+                onClick={() => setCurrentPage('Settings')}
+                className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-lg transition"
+              >
+                Settings
+              </button>
+              <button
+                onClick={() => setDbStatus((s) => ({ ...s, error: null }))}
+                className="text-amber-700 hover:text-amber-900 px-1 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Page Content */}
         <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">
